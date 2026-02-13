@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>🎵 מכונת השירים הקסומה</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@400;600;700;800;900&display=swap');
+    body { font-family: 'Rubik', sans-serif; }
+
+    .rainbow-bg {
+      background: linear-gradient(135deg, #ff6b6b, #feca57, #48dbfb, #ff9ff3, #54a0ff);
+      background-size: 400% 400%;
+      animation: rainbowShift 6s ease infinite;
+    }
+    @keyframes rainbowShift {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    .bounce-in {
+      animation: bounceIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    }
+    @keyframes bounceIn {
+      0% { transform: scale(0.3); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .float {
+      animation: float 3s ease-in-out infinite;
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-10px); }
+    }
+
+    .wiggle:hover {
+      animation: wiggle 0.4s ease-in-out;
+    }
+    @keyframes wiggle {
+      0%, 100% { transform: rotate(0deg); }
+      25% { transform: rotate(-5deg); }
+      75% { transform: rotate(5deg); }
+    }
+
+    .sparkle {
+      animation: sparkle 1.5s ease-in-out infinite;
+    }
+    @keyframes sparkle {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.7; transform: scale(1.2); }
+    }
+
+    .loading-dots span {
+      animation: loadDot 1.4s infinite ease-in-out both;
+    }
+    .loading-dots span:nth-child(1) { animation-delay: -0.32s; }
+    .loading-dots span:nth-child(2) { animation-delay: -0.16s; }
+    @keyframes loadDot {
+      0%, 80%, 100% { transform: scale(0); }
+      40% { transform: scale(1); }
+    }
+
+    .option-btn {
+      transition: all 0.2s ease;
+    }
+    .option-btn:hover {
+      transform: scale(1.05);
+      box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    }
+    .option-btn:active {
+      transform: scale(0.97);
+    }
+    .option-btn.selected {
+      ring: 4px;
+      transform: scale(1.05);
+    }
+
+    .confetti-piece {
+      position: fixed;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      animation: confettiFall 3s ease-in forwards;
+      pointer-events: none;
+      z-index: 100;
+    }
+    @keyframes confettiFall {
+      0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+    }
+  </style>
+</head>
+<body class="min-h-screen rainbow-bg flex items-center justify-center p-4">
+  <div id="app"></div>
+
+  <script>
+    // ==================== APP STATE ====================
+    const state = {
+      currentStep: 0, // 0 = welcome, 1-5 = steps, 6 = magic word, 7 = loading, 8 = result
+      choices: {},
+      magicWord: '',
+    };
+
+    // ==================== OPTION POOLS (pick 4 random each time) ====================
+    const optionPools = {
+      rhythm: [
+        { label: 'פופ מקפיץ', emoji: '🎵', en: 'upbeat pop' },
+        { label: 'רוק כבד', emoji: '🎸', en: 'heavy rock' },
+        { label: 'שיר ערש', emoji: '🌙', en: 'lullaby' },
+        { label: 'היפ-הופ', emoji: '🎤', en: 'hip-hop' },
+        { label: 'רגאיי', emoji: '🏝️', en: 'reggae' },
+        { label: 'דיסקו', emoji: '🪩', en: 'disco' },
+        { label: 'ג׳אז', emoji: '🎷', en: 'jazz' },
+        { label: 'טראנס', emoji: '🎧', en: 'trance' },
+        { label: 'קאנטרי', emoji: '🤠', en: 'country' },
+        { label: 'סמבה', emoji: '💃', en: 'samba' },
+      ],
+      topic: [
+        { label: 'הגרביים האבודות', emoji: '🧦', en: 'lost socks' },
+        { label: 'הפסקה בחלל', emoji: '🚀', en: 'recess in outer space' },
+        { label: 'מסיבת פיצה מוזרה', emoji: '🍕', en: 'a weird pizza party' },
+        { label: 'הילדים הופכים לחיות', emoji: '🦁', en: 'kids turning into animals' },
+        { label: 'רובוט שרוצה ללמוד', emoji: '🤖', en: 'a robot who wants to go to school' },
+        { label: 'דינוזאור בסופר', emoji: '🦕', en: 'a dinosaur at the supermarket' },
+        { label: 'עוגיות שברחו מהתנור', emoji: '🍪', en: 'cookies that escaped the oven' },
+        { label: 'גמד שגילה ענק', emoji: '🧙', en: 'a dwarf who discovered a giant' },
+        { label: 'חתול שהפך למלך', emoji: '👑', en: 'a cat who became king' },
+        { label: 'שיעורי בית חיים', emoji: '📚', en: 'homework that came alive' },
+      ],
+      location: [
+        { label: 'הר געש של שוקולד', emoji: '🌋', en: 'a chocolate volcano' },
+        { label: 'דיסקו מתחת למים', emoji: '🐠', en: 'an underwater disco' },
+        { label: 'בתוך תיק גב', emoji: '🎒', en: 'inside a backpack' },
+        { label: 'על ענן צמר גפן', emoji: '☁️', en: 'on a cotton candy cloud' },
+        { label: 'בטירת לגו ענקית', emoji: '🏰', en: 'in a giant LEGO castle' },
+        { label: 'על פיצה מעופפת', emoji: '🛸', en: 'on a flying pizza' },
+        { label: 'בתוך בועת סבון', emoji: '🫧', en: 'inside a soap bubble' },
+        { label: 'בג׳ונגל של ממתקים', emoji: '🍬', en: 'in a candy jungle' },
+        { label: 'על גבי קשת בענן', emoji: '🌈', en: 'on top of a rainbow' },
+        { label: 'במגרש משחקים על הירח', emoji: '🌙', en: 'a playground on the moon' },
+      ],
+      twist: [
+        { label: 'קולות של תרנגול', emoji: '🐓', en: 'chicken clucking sounds' },
+        { label: 'זמר עם אף סתום', emoji: '🤧', en: 'a singer with a stuffy nose' },
+        { label: 'קטע אופרה', emoji: '🎭', en: 'a dramatic opera section' },
+        { label: 'בועות סבון', emoji: '🫧', en: 'soap bubble sound effects' },
+        { label: 'שיהוקים בלי סוף', emoji: '😵', en: 'endless hiccups' },
+        { label: 'צעקה של טארזן', emoji: '🦍', en: 'a Tarzan yell' },
+        { label: 'קולות של חייזרים', emoji: '👽', en: 'alien sound effects' },
+        { label: 'כולם מדברים בשיר', emoji: '🎶', en: 'everyone talks in song' },
+        { label: 'גיהוק ענק', emoji: '😮', en: 'a giant burp' },
+        { label: 'הכל הפוך', emoji: '🙃', en: 'everything is backwards' },
+      ],
+      mood: [
+        { label: 'שטותי', emoji: '🤡', en: 'silly and goofy' },
+        { label: 'מפחיד-מצחיק', emoji: '👻', en: 'spooky but funny' },
+        { label: 'חגיגי', emoji: '🎉', en: 'celebratory and festive' },
+        { label: 'אנרגטי', emoji: '⚡', en: 'energetic and wild' },
+        { label: 'חולמני', emoji: '🌟', en: 'dreamy and magical' },
+        { label: 'מטורף', emoji: '🤯', en: 'crazy and chaotic' },
+        { label: 'מתוק', emoji: '🥰', en: 'sweet and adorable' },
+        { label: 'הרפתקני', emoji: '🗺️', en: 'adventurous and epic' },
+      ],
+    };
+
+    // Pick 4 random from a pool
+    function pickRandom(arr, count) {
+      const shuffled = [...arr].sort(() => Math.random() - 0.5);
+      return shuffled.slice(0, count);
+    }
+
+    // Current randomized steps (regenerated on each restart)
+    let steps = [];
+
+    function generateSteps() {
+      steps = [
+        { title: 'הקצב', subtitle: 'איזה סוג מוזיקה נעשה?', emoji: '🥁', key: 'rhythm', options: pickRandom(optionPools.rhythm, 4) },
+        { title: 'הנושא', subtitle: 'על מה השיר?', emoji: '💡', key: 'topic', options: pickRandom(optionPools.topic, 4) },
+        { title: 'המקום', subtitle: 'איפה זה קורה?', emoji: '📍', key: 'location', options: pickRandom(optionPools.location, 4) },
+        { title: 'מה מצחיק?', subtitle: 'מה הדבר המשוגע בשיר?', emoji: '🤪', key: 'twist', options: pickRandom(optionPools.twist, 4) },
+        { title: 'האווירה', subtitle: 'איזה הרגשה?', emoji: '✨', key: 'mood', options: pickRandom(optionPools.mood, 4) },
+      ];
+    }
+
+    // ==================== POEMS (by topic — fallback for any topic) ====================
+    const poems = {
+      'הגרביים האבודות': `🧦 הגרביים ברחו מהארון בלילה
+הן רוקדות ברחוב בלי שום סיבה
+אחת ימינה ואחת שמאלה
+וכולן צועקות: "חופש! איזו שמחה!"`,
+      'הפסקה בחלל': `🚀 בהפסקה עפנו לחלל החיצון
+אכלנו כריך שצף באוויר כמו בלון
+שיחקנו כדור על הירח הגדול
+ואז חזרנו לכיתה כי צלצל הפעמון!`,
+      'מסיבת פיצה מוזרה': `🍕 הפיצה הזמינה את כולם למסיבה
+עם תוספות מוזרות - שוקולד וממתק וגלידה
+הגבינה רקדה סלסה על הבצק
+ובסוף כולם אמרו: "עוד פרוסה, בבקשה!"`,
+      'הילדים הופכים לחיות': `🦁 בוקר אחד קמתי והייתי ג׳ירפה
+ראיתי את כולם - כל הכיתה! איזו שמחה
+דני היה פנגווין ונועה הייתה חתולה
+והמורה? היא הפכה לתוכי - ואמרה: "שלום כיתה!"`,
+      'רובוט שרוצה ללמוד': `🤖 רובוט קטן בא לבית הספר
+הוא ישב בכיתה ואמר "ביפ ביפ שיעור!"
+הוא כתב במחברת עם מברג במקום עט
+והמורה אמרה: "!אתה התלמיד הכי שקט"`,
+      'דינוזאור בסופר': `🦕 דינוזאור נכנס לסופרמרקט
+הוא רצה שוקולד אבל שבר את המדף
+הקופאית צעקה: "!אי אפשר ככה"
+והדינוזאור ענה: "סליחה, אני רק רוצה חטיפה!"`,
+      'עוגיות שברחו מהתנור': `🍪 העוגיות קפצו מהתבנית ורצו
+הן טיפסו על השולחן ורקדו
+עוגיה אחת צעקה: "!אנחנו חופשיות"
+ואז כולן נפלו לתוך כוס החלב - אופס!`,
+      'גמד שגילה ענק': `🧙 גמד קטנטן מצא ענק ישן
+הוא טיפס על האף שלו - איזה כיף ממש!
+הענק התעטש והגמד עף לשמיים
+ואז הם הפכו לחברים הכי טובים!`,
+      'חתול שהפך למלך': `👑 חתול לבש כתר וישב על כיסא
+הוא גזר: "!מהיום כולם אוכלים טונה"
+הכלבים מחו והציפורים צייצו
+אבל החתול רק ישן - כי זה מה שחתולים עושים!`,
+      'שיעורי בית חיים': `📚 שיעורי הבית קמו לחיים בלילה
+המחברת רצה והעט התחיל לשיר
+המספרים רקדו טנגו עם האותיות
+והמורה אמרה: "!מחר אתם מגישים - בלי תירוצים"`,
+    };
+
+    // Fallback poem for topics without a specific poem
+    function getPoem(topicLabel) {
+      if (poems[topicLabel]) return poems[topicLabel];
+      return `🎶 שיר על ${topicLabel}
+זה הולך להיות מדהים ומצחיק
+עם מלא הפתעות ודברים משוגעים
+בואו נשמע את זה ונרקוד ביחד!`;
+    }
+
+    // ==================== PROMPT BUILDER (partial, for live preview) ====================
+    function buildPartialPrompt() {
+      const c = state.choices;
+      const parts = [];
+      if (c.rhythm) parts.push(`${c.rhythm.en} style`);
+      if (c.topic) parts.push(`about ${c.topic.en}`);
+      if (c.location) parts.push(`set at ${c.location.en}`);
+      if (c.twist) parts.push(`with ${c.twist.en}`);
+      if (c.mood) parts.push(`${c.mood.en} mood`);
+      if (state.magicWord.trim()) parts.push(`magic word: "${state.magicWord}"`);
+      if (parts.length === 0) return '';
+      return `A fun children's song: ${parts.join(' · ')}`;
+    }
+
+    function buildPrompt() {
+      const c = state.choices;
+      return `A fun, ${c.mood.en} children's song in ${c.rhythm.en} style about ${c.topic.en}. ` +
+        `Set at ${c.location.en}. ` +
+        `Include ${c.twist.en} as a funny element. ` +
+        `The magic word "${state.magicWord}" should be featured prominently. ` +
+        `Catchy, kid-friendly, singalong chorus, playful and energetic vocals, silly sound effects.`;
+    }
+
+    // ==================== LIVE PROMPT PREVIEW ====================
+    function renderPromptPreview() {
+      const partial = buildPartialPrompt();
+      if (!partial) return '';
+      return `
+        <div class="mt-5 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-3 border border-indigo-200">
+          <div class="flex items-center gap-2 text-sm font-bold text-indigo-600 mb-1">🤖 הפרומפט נבנה:</div>
+          <p class="text-sm text-indigo-800 font-mono leading-relaxed" dir="ltr">${partial}</p>
+        </div>`;
+    }
+
+    // ==================== RENDER ====================
+    function render() {
+      const app = document.getElementById('app');
+
+      if (state.currentStep === 0) {
+        app.innerHTML = renderWelcome();
+      } else if (state.currentStep <= 5) {
+        app.innerHTML = renderStep(state.currentStep - 1);
+      } else if (state.currentStep === 6) {
+        app.innerHTML = renderMagicWord();
+      } else if (state.currentStep === 7) {
+        app.innerHTML = renderLoading();
+        setTimeout(() => { state.currentStep = 8; render(); spawnConfetti(); }, 2500);
+      } else if (state.currentStep === 8) {
+        app.innerHTML = renderResult();
+      }
+    }
+
+    // ==================== SCREENS ====================
+    function renderWelcome() {
+      return `
+        <div class="bg-white/90 backdrop-blur rounded-3xl shadow-2xl p-8 md:p-12 max-w-lg w-full text-center bounce-in">
+          <div class="text-8xl float mb-4">🎵</div>
+          <h1 class="text-4xl md:text-5xl font-black text-purple-600 mb-3">מכונת השירים</h1>
+          <h2 class="text-2xl md:text-3xl font-bold text-pink-500 mb-6">הקסומה ✨</h2>
+          <p class="text-lg text-gray-600 mb-8">בואו ניצור שיר מטורף ביחד!</p>
+          <button onclick="nextStep()"
+            class="option-btn bg-gradient-to-r from-purple-500 to-pink-500 text-white text-2xl font-bold py-4 px-10 rounded-full shadow-lg">
+            🚀 יאללה מתחילים!
+          </button>
+        </div>`;
+    }
+
+    function renderStep(idx) {
+      const step = steps[idx];
+      const progress = ((idx + 1) / 6 * 100).toFixed(0);
+      const colors = [
+        ['from-red-400', 'to-orange-400', 'bg-red-100', 'ring-red-400', 'text-red-700'],
+        ['from-blue-400', 'to-cyan-400', 'bg-blue-100', 'ring-blue-400', 'text-blue-700'],
+        ['from-green-400', 'to-emerald-400', 'bg-green-100', 'ring-green-400', 'text-green-700'],
+        ['from-yellow-400', 'to-amber-400', 'bg-yellow-100', 'ring-yellow-400', 'text-yellow-700'],
+        ['from-purple-400', 'to-violet-400', 'bg-purple-100', 'ring-purple-400', 'text-purple-700'],
+      ];
+      const c = colors[idx];
+
+      return `
+        <div class="bg-white/90 backdrop-blur rounded-3xl shadow-2xl p-6 md:p-10 max-w-xl w-full bounce-in">
+          <!-- Progress -->
+          <div class="mb-6">
+            <div class="flex justify-between text-sm font-bold text-gray-500 mb-1">
+              <span>שלב ${idx + 1} מתוך 6</span>
+              <span>${progress}%</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+              <div class="h-full bg-gradient-to-l ${c[0]} ${c[1]} rounded-full transition-all duration-500" style="width:${progress}%"></div>
+            </div>
+          </div>
+          <!-- Title -->
+          <div class="text-center mb-6">
+            <div class="text-5xl mb-2">${step.emoji}</div>
+            <h2 class="text-3xl font-black ${c[4]}">${step.title}</h2>
+            <p class="text-lg text-gray-500 mt-1">${step.subtitle}</p>
+          </div>
+          <!-- Options -->
+          <div class="grid grid-cols-2 gap-4">
+            ${step.options.map((opt, i) => `
+              <button onclick="selectOption('${step.key}', ${i})"
+                class="option-btn wiggle ${c[2]} rounded-2xl p-5 text-center cursor-pointer border-2 border-transparent hover:border-gray-300">
+                <div class="text-4xl mb-2">${opt.emoji}</div>
+                <div class="text-lg font-bold text-gray-800">${opt.label}</div>
+              </button>
+            `).join('')}
+          </div>
+          <!-- Live prompt preview -->
+          ${renderPromptPreview()}
+          <!-- Nav (back only — forward is automatic on click) -->
+          <div class="flex justify-start mt-4">
+            ${idx > 0 ? `<button onclick="prevStep()" class="text-gray-400 hover:text-gray-600 text-lg font-bold py-2 px-4 rounded-full">→ חזרה</button>` : ''}
+          </div>
+        </div>`;
+    }
+
+    function renderMagicWord() {
+      return `
+        <div class="bg-white/90 backdrop-blur rounded-3xl shadow-2xl p-6 md:p-10 max-w-xl w-full bounce-in text-center">
+          <div class="mb-6">
+            <div class="flex justify-between text-sm font-bold text-gray-500 mb-1">
+              <span>שלב 6 מתוך 6</span>
+              <span>100%</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+              <div class="h-full bg-gradient-to-l from-pink-400 to-red-400 rounded-full" style="width:100%"></div>
+            </div>
+          </div>
+          <div class="text-6xl mb-3 sparkle">🪄</div>
+          <h2 class="text-3xl font-black text-pink-600 mb-2">מילת הקסם</h2>
+          <p class="text-lg text-gray-500 mb-6">בחרו מילה אחת מיוחדת שתיכנס לשיר!</p>
+          <input type="text" id="magicInput" value="${state.magicWord}" placeholder="...כתבו מילה קסומה"
+            oninput="state.magicWord = this.value; updateGenerateBtn();"
+            class="text-center text-2xl font-bold w-full border-4 border-pink-300 rounded-2xl py-4 px-6 focus:outline-none focus:border-pink-500 focus:ring-4 focus:ring-pink-200 bg-pink-50 placeholder-pink-300" />
+          ${renderPromptPreview()}
+          <div class="flex justify-between mt-6">
+            <button onclick="prevStep()" class="text-gray-400 hover:text-gray-600 text-lg font-bold py-2 px-4 rounded-full">
+              → חזרה
+            </button>
+            <button onclick="generateSong()" id="generateBtn" disabled
+              class="bg-gradient-to-r from-pink-500 to-red-500 text-white text-xl font-bold py-3 px-8 rounded-full shadow-lg disabled:opacity-30 disabled:cursor-not-allowed option-btn">
+              🎵 ליצור את השיר!
+            </button>
+          </div>
+        </div>`;
+    }
+
+    function renderLoading() {
+      return `
+        <div class="bg-white/90 backdrop-blur rounded-3xl shadow-2xl p-10 max-w-md w-full text-center bounce-in">
+          <div class="text-7xl sparkle mb-6">🪄</div>
+          <h2 class="text-3xl font-black text-purple-600 mb-4">...מכינים את הקסם</h2>
+          <div class="loading-dots flex justify-center gap-3">
+            <span class="w-5 h-5 bg-purple-500 rounded-full inline-block"></span>
+            <span class="w-5 h-5 bg-pink-500 rounded-full inline-block"></span>
+            <span class="w-5 h-5 bg-yellow-500 rounded-full inline-block"></span>
+          </div>
+        </div>`;
+    }
+
+    function renderResult() {
+      const c = state.choices;
+      const prompt = buildPrompt();
+      const topicLabel = c.topic.label;
+      const poem = getPoem(topicLabel);
+
+      return `
+        <div class="bg-white/90 backdrop-blur rounded-3xl shadow-2xl p-6 md:p-10 max-w-2xl w-full bounce-in">
+          <div class="text-center mb-6">
+            <div class="text-6xl mb-2">🎉</div>
+            <h2 class="text-3xl font-black text-purple-600">!השיר מוכן</h2>
+          </div>
+
+          <!-- Summary -->
+          <div class="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-5 mb-5 border-2 border-purple-200">
+            <h3 class="text-xl font-bold text-purple-700 mb-3">🎵 הבחירות שלנו:</h3>
+            <div class="grid grid-cols-2 gap-2 text-lg">
+              <div class="flex items-center gap-2"><span>🥁</span><strong>קצב:</strong> ${c.rhythm.label}</div>
+              <div class="flex items-center gap-2"><span>💡</span><strong>נושא:</strong> ${c.topic.label}</div>
+              <div class="flex items-center gap-2"><span>📍</span><strong>מקום:</strong> ${c.location.label}</div>
+              <div class="flex items-center gap-2"><span>🤪</span><strong>מצחיק:</strong> ${c.twist.label}</div>
+              <div class="flex items-center gap-2"><span>✨</span><strong>אווירה:</strong> ${c.mood.label}</div>
+              <div class="flex items-center gap-2"><span>🪄</span><strong>מילת קסם:</strong> ${state.magicWord}</div>
+            </div>
+          </div>
+
+          <!-- Poem -->
+          <div class="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-2xl p-5 mb-5 border-2 border-yellow-300">
+            <h3 class="text-xl font-bold text-orange-700 mb-2">📝 מילות השיר:</h3>
+            <pre class="text-lg text-gray-800 whitespace-pre-wrap font-[Rubik] leading-relaxed">${poem}</pre>
+          </div>
+
+          <!-- Suno Prompt -->
+          <div class="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-5 mb-5 border-2 border-blue-300">
+            <h3 class="text-xl font-bold text-blue-700 mb-2">🤖 Suno Prompt:</h3>
+            <p id="sunoPrompt" class="text-base text-gray-700 leading-relaxed font-mono bg-white/70 p-3 rounded-xl" dir="ltr">${prompt}</p>
+          </div>
+
+          <!-- Actions -->
+          <div class="flex flex-col sm:flex-row gap-3 justify-center">
+            <button onclick="copyPrompt()"
+              id="copyBtn"
+              class="option-btn bg-gradient-to-r from-blue-500 to-cyan-500 text-white text-xl font-bold py-3 px-8 rounded-full shadow-lg">
+              📋 העתק פרומפט
+            </button>
+            <button onclick="startOver()"
+              class="option-btn bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xl font-bold py-3 px-8 rounded-full shadow-lg">
+              🔄 שיר חדש!
+            </button>
+          </div>
+        </div>`;
+    }
+
+    // ==================== LOGIC ====================
+    function selectOption(key, index) {
+      const stepIdx = steps.findIndex(s => s.key === key);
+      const opt = steps[stepIdx].options[index];
+      state.choices[key] = { label: opt.label, en: opt.en, emoji: opt.emoji, index };
+      // Auto-advance to next step after a short visual delay
+      setTimeout(() => { state.currentStep++; render(); }, 350);
+    }
+
+    function nextStep() {
+      state.currentStep++;
+      render();
+    }
+
+    function prevStep() {
+      if (state.currentStep > 0) {
+        state.currentStep--;
+        render();
+      }
+    }
+
+    function generateSong() {
+      state.currentStep = 7;
+      render();
+    }
+
+    function updateGenerateBtn() {
+      const btn = document.getElementById('generateBtn');
+      if (btn) btn.disabled = !state.magicWord.trim();
+    }
+
+    function startOver() {
+      state.currentStep = 0;
+      state.choices = {};
+      state.magicWord = '';
+      generateSteps(); // Randomize options for next round!
+      render();
+    }
+
+    function copyPrompt() {
+      const text = document.getElementById('sunoPrompt').innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('copyBtn');
+        btn.textContent = '✅ !הועתק';
+        setTimeout(() => { btn.textContent = '📋 העתק פרומפט'; }, 2000);
+      });
+    }
+
+    function spawnConfetti() {
+      const colors = ['#ff6b6b','#feca57','#48dbfb','#ff9ff3','#54a0ff','#5f27cd','#1dd1a1','#ff9f43'];
+      for (let i = 0; i < 60; i++) {
+        const el = document.createElement('div');
+        el.className = 'confetti-piece';
+        el.style.left = Math.random() * 100 + 'vw';
+        el.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+        el.style.animationDelay = Math.random() * 2 + 's';
+        el.style.width = (Math.random() * 8 + 6) + 'px';
+        el.style.height = el.style.width;
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 5000);
+      }
+    }
+
+    // ==================== INIT ====================
+    generateSteps();
+    render();
+  </script>
+</body>
+</html>
