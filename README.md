@@ -99,4 +99,4 @@ MIT — use it, remix it, share it. Have fun! 🎵
 
 ---
 
-*Built with ❤️ and AI by [Neon Ash](https://github.com/nakashon)*
+*Built with ❤️ and AI by [Asaf Nakash](https://github.com/nakashon)*
